@@ -126,7 +126,7 @@ class udpserver{
 				}
 
 				/** Checking to see if we have reached the sliding window limit **/
-				if(counter >= upperLim){
+				if(counter > upperLim){
 					if(!acks.contains(lowerLim)){
 						canSend = false; //if reached, sending stops
 						j--; //repeating this iteration of the for loop
