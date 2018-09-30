@@ -105,11 +105,12 @@ class udpserver{
 			for(int j = 0; j < numPackets;  j++){
 				if(canSend == true){
 					/** Sending packet **/
+				
 					ByteBuffer buffer = ByteBuffer.allocate(4096);
 					byte[] packet = Arrays.copyOfRange(fileContent, (j*1024), ((j+1)*1024));
 					manager.sendPacket(c, packet, clientaddr,counter); 
 					savedPackets.add(new Packet(counter, packet));
-
+					
 				}
 				
 				/** Receiving Acknowledgment **/
@@ -127,7 +128,7 @@ class udpserver{
 					/** removing unneccecary null charachters **/
 					ack = ack.replaceAll("\0+","");
 
-					/** converting into an integer **/
+					/** converting into an integer and adding to the acknoledment array **/
 					acks.add(Integer.parseInt(ack));
 					canSend = true;
 				}
@@ -146,8 +147,12 @@ class udpserver{
 						canSend = false; //if reached, sending stops
 						j--; //repeating this iteration of the for loop
 						counter--;
+
+						/** Using a timer because often acknoledments take a quick moment to arrive and I
+						 * want to remove unneccecary resends **/
 						if(timer >= 20){
 							System.out.println("Sliding Window limit reached, resending packet " + savedPackets.get(0).getNumber());
+							/** Resending earliest packet in array (lower lim) **/
 							manager.sendPacket(c, savedPackets.get(0).getData(), clientaddr, savedPackets.get(0).getNumber());
 							if(savedPackets.get(0).getNumber() == lowerLim){
 							System.out.println("The earliest packet is the lower lim");
@@ -163,6 +168,8 @@ class udpserver{
 	
 			        }
 				counter++;
+
+				/** keeping the saved packet array to just 5 elements **/
 				if(savedPackets.size() > 6){
 					savedPackets.remove(0);
 				}

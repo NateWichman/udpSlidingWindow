@@ -59,8 +59,15 @@ class udpclient{
 	    /** Byte array to hold the received data **/
 	    byte[] receivedData = {};
 	    int acknowledgment = 0;
-
+	    
+	    /** Holds Received Packet numbers **/
 	    ArrayList<Integer> receivedPacketNumbers = new ArrayList<Integer>();
+
+	    /** holds no more than 10 received packets **/
+	    ArrayList<Packet> packets = new ArrayList<Packet>();
+
+	    /** keeps track of the current packet number to be written to the file **/
+	    int currentPacketNumber = 0;
 
 	    while(true){
 		    /** Receiving packets from Server **/
@@ -78,10 +85,12 @@ class udpclient{
 			    System.out.println("Termination Code recieved, writing file");
 			    break;
 		    } 
+
+		    /** Extracting Packet Number (Attached to beginning of packet **/
 		    String code = "";
 		    char x = test.charAt(0);
 		    int iter = 0;
-		   while(x != 'D'){
+		    while(x != 'D'){
 			    code = code + x;
 			    iter++;
 			    if(iter > test.length()){
@@ -91,24 +100,84 @@ class udpclient{
 			    x = test.charAt(iter);
 		    }
 		    
+		    /** Removing Packet Number from data (test) **/
 		    test = test.substring(iter + 1);
 		    a = test.getBytes();
 		    System.out.println("Code = " + code);
-		    receivedPacketNumbers.add(Integer.parseInt(code));
-		
 
-		    /** Adding new packet to the total byte array (ReceivedData[]) **/
-		    byte[] combo = new byte[a.length + receivedData.length];
-		    System.arraycopy(receivedData, 0, combo,0, receivedData.length);
-		    System.arraycopy(a, 0, combo, receivedData.length, a.length);
-		    receivedData = combo;
-		    System.out.println("Bytes Received: " + a);
+		    /** adding the packet number to arrayList **/
+		    receivedPacketNumbers.add(Integer.parseInt(code));
+	            int num = Integer.parseInt(code);
+		    
+		
+		    
+		    /** Adding packet to saved packet list if it is not already in there **/
+		    boolean CanAddPacket = true;
+		    for(Packet pac: packets){
+			if(pac.getNumber() == num){
+				/** not adding if packet is already in the array **/
+				System.out.println("Packet Already Received");
+				CanAddPacket = false;
+			}
+		    }
+		    if(CanAddPacket){
+		 	   packets.add(new Packet(num, a));
+		    }
+
+		    
+		
+		    
+
+		    /** Adding all possible packets to the file possible **/
+	            Iterator<Packet> iter2 = packets.iterator();
+		    boolean missingNextPacket = true;
+		    while(iter2.hasNext()){
+			Packet pac = iter2.next();
+
+			/** deleting packets from the array that have already been written to the file **/
+			if(pac.getNumber() < currentPacketNumber){
+				System.out.println("Packet " + pac.getNumber() + " is less than the current packet number, removing packet");
+				iter2.remove();
+			}
+
+			/** If the packet is the next to be written, adding it recievedData byte[] to be written **/
+			if(pac.getNumber() == currentPacketNumber){
+				byte[] combo = new byte[pac.getData().length + receivedData.length];
+				System.arraycopy(receivedData, 0, combo, 0, receivedData.length);
+				System.arraycopy(pac.getData(), 0, combo, receivedData.length, pac.getData().length);
+				receivedData = combo;
+				System.out.println("Adding packet: " + pac.getNumber() + " to the file");
+				iter2.remove();
+				System.out.println("Removing Packet: " + pac.getNumber());
+				currentPacketNumber++;
+				missingNextPacket = false;
+			}
+
+			else{
+				System.out.println("Packet " + pac.getNumber() + " is not the current packet");
+			}
+		    }
+		    
+	            /** if the next packet is not received yet, the preivious acknowledgment is send again **/	    
+		    if(missingNextPacket){
+			    String resendAck = "c" +  Integer.toString(currentPacketNumber - 1);
+			    ByteBuffer buf5 = ByteBuffer.wrap(resendAck.getBytes());
+			    System.out.println("Resending Ack for packet " + (currentPacketNumber - 1));
+			    sc.send(buf5, new InetSocketAddress((ipAddress), portNumber));
+		    } 
+		    
+		    /** Making sure I do not have more than 10 packets saved at any time **/
+		    if(packets.size() > 10){
+			packets.remove(9);
+		    }
+
+
 		    
 		    
 		    /** Sending acknoledgment **/
-	  	    String ack = "c" + Integer.toString(acknowledgment); //Every acknowledgment begins with c
-		    //I had issues checking if the string was null on the server end, so instead I check that
-		    //it begins with c then remove the c leaving just the integer on the server end.
+		    String ack = "c" + code;
+		    
+		    
 		    ByteBuffer buf4 = ByteBuffer.wrap(ack.getBytes());
 		    sc.send(buf4, new InetSocketAddress((ipAddress), portNumber));
 		    acknowledgment++;
