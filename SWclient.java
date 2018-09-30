@@ -58,8 +58,10 @@ class udpclient{
 	    
 	    /** Byte array to hold the received data **/
 	    byte[] receivedData = {};
-	  //  byte[] temp;
 	    int acknowledgment = 0;
+
+	    ArrayList<Integer> receivedPacketNumbers = new ArrayList<Integer>();
+
 	    while(true){
 		    /** Receiving packets from Server **/
 		    ByteBuffer buf2 = ByteBuffer.allocate(5000);
@@ -68,16 +70,32 @@ class udpclient{
 		    byte[] a = new byte[buf2.remaining()];
 		    /** Converting to string to test for termination code **/
 		    String test = new String(buf2.array());
-		    /** Removing null charachters from string **/
-		    test = test.replaceAll("\0+$", "");
-		    buf2.get(a);
-		    if(test == null){
-			    System.out.println("null");
-		    }
-		    else  if(test.equals("done")){
-			    System.out.println("done");
+		    test = test.replaceAll("\0+$","");
+		    
+	 	    if(test == null){
+			    System.out.println("null packet received");
+		    }else if(test.equals("done")){
+			    System.out.println("Termination Code recieved, writing file");
 			    break;
+		    } 
+		    String code = "";
+		    char x = test.charAt(0);
+		    int iter = 0;
+		   while(x != 'D'){
+			    code = code + x;
+			    iter++;
+			    if(iter > test.length()){
+				    System.out.println("Reached End Packet and received no packet number termination code (#D)");
+				    break;
+			    }
+			    x = test.charAt(iter);
 		    }
+		    
+		    test = test.substring(iter + 1);
+		    a = test.getBytes();
+		    System.out.println("Code = " + code);
+		    receivedPacketNumbers.add(Integer.parseInt(code));
+		
 
 		    /** Adding new packet to the total byte array (ReceivedData[]) **/
 		    byte[] combo = new byte[a.length + receivedData.length];
@@ -104,6 +122,7 @@ class udpclient{
 		    System.out.println("ReceivedData was empty");
 	    } 
 
+	    System.out.println("Recieved Packet Numbers: " + receivedPacketNumbers);
 	    /** Closing Datagram Socket Channel **/
 	    sc.close();
 

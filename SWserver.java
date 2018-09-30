@@ -97,13 +97,19 @@ class udpserver{
 			/** Upper and lower limits of the Sliding Window **/
 			int upperLim = 4;
 			int lowerLim = 0;
+			
+			/** Holds saved Packets (Packet is a custom made class in the same directory) **/
+			ArrayList<Packet> savedPackets = new ArrayList<Packet>();
 
+			int timer = 0;
 			for(int j = 0; j < numPackets;  j++){
 				if(canSend == true){
 					/** Sending packet **/
 					ByteBuffer buffer = ByteBuffer.allocate(4096);
 					byte[] packet = Arrays.copyOfRange(fileContent, (j*1024), ((j+1)*1024));
-					manager.sendPacket(c, packet, clientaddr); 
+					manager.sendPacket(c, packet, clientaddr,counter); 
+					savedPackets.add(new Packet(counter, packet));
+
 				}
 				
 				/** Receiving Acknowledgment **/
@@ -111,11 +117,12 @@ class udpserver{
 				c.receive(ackBuf);
 				String ack = new String(ackBuf.array());
 
+				
 				/** First letter of Acknowledment is always c **/
 				if(ack.charAt(0) == 'c'){
 					/** Removing the 'c' leaving just an integer in the string **/
 					ack = ack.substring(1);
-					System.out.println("Acknowledgment Received" + ack);
+					System.out.println("Acknowledgment Received: " + ack);
 
 					/** removing unneccecary null charachters **/
 					ack = ack.replaceAll("\0+","");
@@ -125,23 +132,40 @@ class udpserver{
 					canSend = true;
 				}
 
+				/** Incrementing window if needed **/
+				if(acks.contains(lowerLim)){
+					lowerLim++;
+					upperLim++;
+					System.out.println("Sliding Window");
+					timer = 0;
+				}
+
 				/** Checking to see if we have reached the sliding window limit **/
 				if(counter > upperLim){
 					if(!acks.contains(lowerLim)){
 						canSend = false; //if reached, sending stops
 						j--; //repeating this iteration of the for loop
 						counter--;
-						System.out.println("Sliding Window limit reached, pausing for acknowledment");
+						if(timer >= 20){
+							System.out.println("Sliding Window limit reached, resending packet " + savedPackets.get(0).getNumber());
+							manager.sendPacket(c, savedPackets.get(0).getData(), clientaddr, savedPackets.get(0).getNumber());
+							if(savedPackets.get(0).getNumber() == lowerLim){
+							System.out.println("The earliest packet is the lower lim");
+							}else{
+								System.out.println("ERROR, earliest packet is no the lower lim, lim is " + lowerLim);
+							}
+							timer = 0;
+						}else{
+							System.out.println("Sliding Window Limit Reached, pausing for acknowledment");
+							timer++;
+						}
 					}
-					else{
-						/** If the lower limit is in the arrayList, we can adjust the window and continue
-						 * sending **/
-						lowerLim++;
-						upperLim++;
-						System.out.println("Sliding Window up by 1");
-					}
+	
 			        }
 				counter++;
+				if(savedPackets.size() > 6){
+					savedPackets.remove(0);
+				}
 			}
 			
 			/** Sending Termination Code to Client so it knows to end its receiving
@@ -168,12 +192,21 @@ Private helper method to send a packet to the client.
 @param A datagramChannel, a packet to send, and the clients socket address
 @returns void
 ************************************************************************************************/
- private void sendPacket(DatagramChannel c, byte[] packet, SocketAddress clientaddr) {
+ private void sendPacket(DatagramChannel chan, byte[] packet, SocketAddress clientaddr, int packetNumber) {
 	    try{
-		ByteBuffer buf = ByteBuffer.wrap(packet);
-		c.send(buf, clientaddr);
+		String packetNumberString  = Integer.toString(packetNumber) + "D";
+		byte[] a = packetNumberString.getBytes();
+		byte[] c = new byte[a.length + packet.length];
+		System.arraycopy(a, 0, c, 0, a.length);
+		System.arraycopy(packet, 0, c, a.length, packet.length);
+
+		ByteBuffer buf = ByteBuffer.wrap(c);
+		chan.send(buf, clientaddr);
 	    }catch(IOException e){
 		    System.out.println("Error Sending Packet");
 	    }
     }
 }
+
+
+
